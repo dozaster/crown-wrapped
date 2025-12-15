@@ -12,16 +12,6 @@ import {
   Share2,
 } from "lucide-react";
 
-/**
- * Crown Customs Wrapped — Vertical Scroll Edition (Spotify-like)
- * - Full-screen vertical sections
- * - CSS scroll-snap for “page” snapping
- * - Subtle on-view motion
- * - Share button per page (Web Share API + clipboard fallback)
- *
- * Paste into: src/app/page.tsx
- */
-
 type Stat = {
   label: string;
   value: string;
@@ -33,18 +23,28 @@ type Slide = {
   title: string;
   subtitle?: string;
   icon?: React.ReactNode;
-  theme: {
-    bg: string; // tailwind gradient classes
-    pill: string; // icon pill background
-  };
+  theme: { bg: string; pill: string };
   stats?: Stat[];
   list?: { heading: string; items: string[] }[];
   highlight?: { label: string; value: string; note?: string };
   footer?: string;
 };
 
-function safeTitle(s: string) {
-  return s.replace(/\s+/g, " ").trim();
+/** Share helper (Vercel/TS safe) */
+function shareContent(title: string, text?: string) {
+  if (typeof window === "undefined") return;
+
+  const url = window.location.href;
+  const nav = window.navigator as any;
+
+  // Web Share API (mobile friendly)
+  if (nav?.share) {
+    nav.share({ title, text, url }).catch(() => {});
+    return;
+  }
+
+  // Safe fallback (no clipboard typing issues)
+  window.prompt("Copy and share this:", `${title}\n${text ?? ""}\n${url}`);
 }
 
 export default function Page() {
@@ -53,7 +53,7 @@ export default function Page() {
       {
         id: "intro",
         title: "Crown Customs Wrapped",
-        subtitle: "Your year in motion — scroll to progress like Spotify Wrapped.",
+        subtitle: "Your year in motion — scroll to explore",
         icon: <Crown className="h-5 w-5" />,
         theme: {
           bg: "bg-gradient-to-b from-zinc-950 via-zinc-900 to-neutral-900",
@@ -64,7 +64,7 @@ export default function Page() {
           { label: "Customers Served", value: "1,215", helper: "(mock)" },
           { label: "Returning Customers", value: "38%", helper: "(mock)" },
         ],
-        footer: "Tip: replace mock stats with real numbers from your job tracking.",
+        footer: "Replace mock stats with real totals from job tracking/POS.",
       },
       {
         id: "garage",
@@ -103,7 +103,7 @@ export default function Page() {
         },
         list: [
           {
-            heading: "Top services (ranked — mock)",
+            heading: "Top services (mock)",
             items: [
               "1) Paint Protection Film (PPF)",
               "2) Window Tint",
@@ -122,7 +122,7 @@ export default function Page() {
       {
         id: "wraps",
         title: "Wraps Wrapped",
-        subtitle: "Colors, vehicles, and materials that owned the year.",
+        subtitle: "Popular colors, most wrapped vehicle, and top manufacturer.",
         icon: <Palette className="h-5 w-5" />,
         theme: {
           bg: "bg-gradient-to-b from-rose-950 via-orange-900 to-zinc-950",
@@ -131,7 +131,7 @@ export default function Page() {
         stats: [
           { label: "Total Wrap Jobs", value: "265", helper: "(mock)" },
           { label: "Full Wraps", value: "61%", helper: "(mock)" },
-          { label: "Accents / Partial", value: "39%", helper: "(mock)" },
+          { label: "Partial / Accents", value: "39%", helper: "(mock)" },
         ],
         list: [
           {
@@ -141,7 +141,7 @@ export default function Page() {
               "Nardo Gray (Satin/Matte)",
               "Gloss White",
               "Satin Dark Gray",
-              "Color-Shift (oil slick / teal-purple)",
+              "Color-Shift (teal/purple)",
             ],
           },
           {
@@ -150,13 +150,13 @@ export default function Page() {
           },
           {
             heading: "Top wrap manufacturer (mock)",
-            items: ["3M (followed by Avery Dennison)"],
+            items: ["3M (runner-up: Avery Dennison)"],
           },
         ],
         highlight: {
           label: "Trend of the year",
           value: "Satin + stealth aesthetics",
-          note: "Pairing wraps with tint + blackout details.",
+          note: "Often paired with tint + blackout trim.",
         },
       },
       {
@@ -213,7 +213,7 @@ export default function Page() {
       },
       {
         id: "outro",
-        title: "Next Up: Populate Real Stats",
+        title: "Next Up: Populate the Real Stats",
         subtitle: "This is the template — now we plug in your actual numbers.",
         icon: <Crown className="h-5 w-5" />,
         theme: {
@@ -233,7 +233,7 @@ export default function Page() {
             ],
           },
         ],
-        footer: "Scroll back up and imagine these filled with your real shop metrics.",
+        footer: "Once stats are real, this becomes a shareable annual recap link.",
       },
     ],
     []
@@ -242,43 +242,13 @@ export default function Page() {
   const [activeIndex, setActiveIndex] = useState(0);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
 
-  const shareSlide = useCallback((slide: Slide) => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    const title = `Crown Customs Wrapped — ${safeTitle(slide.title)}`;
-    const text = slide.subtitle
-      ? `${slide.subtitle}\n\n${url}`
-      : `Check out our year in review.\n\n${url}`;
-
-    // Web Share API (mobile friendly)
-    if (typeof navigator !== "undefined" && "share" in navigator) {
-      (navigator as any)
-        .share({ title, text, url })
-        .catch(() => {
-          // user cancelled share; ignore
-        });
-      return;
-    }
-
-    // Clipboard fallback
-    const toCopy = `${title}\n${text}`;
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      navigator.clipboard
-        .writeText(toCopy)
-        .then(() => alert("Copied share text + link to clipboard."))
-        .catch(() => alert("Could not copy. You can manually copy the URL."));
-    } else {
-      alert("Sharing not supported here. Copy the URL from your address bar.");
-    }
-  }, []);
-
-  // Observe sections to update active index (progress UI)
+  // Update active slide based on what's most visible
   useEffect(() => {
     const els = sectionRefs.current.filter(Boolean) as HTMLElement[];
     if (!els.length) return;
 
     const obs = new IntersectionObserver(
       (entries) => {
-        // Pick the entry with the highest intersection ratio
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => (b.intersectionRatio ?? 0) - (a.intersectionRatio ?? 0))[0];
@@ -287,15 +257,12 @@ export default function Page() {
         const idx = Number((visible.target as HTMLElement).dataset.index);
         if (!Number.isNaN(idx)) setActiveIndex(idx);
       },
-      {
-        root: null,
-        threshold: [0.35, 0.5, 0.65],
-      }
+      { threshold: [0.35, 0.5, 0.65] }
     );
 
     els.forEach((el) => obs.observe(el));
     return () => obs.disconnect();
-  }, [slides.length]);
+  }, []);
 
   const scrollToIndex = useCallback((i: number) => {
     const el = sectionRefs.current[i];
@@ -305,42 +272,31 @@ export default function Page() {
 
   return (
     <div className="relative">
-      {/* Sticky header (progress + quick nav) */}
-      <div className="fixed top-0 left-0 right-0 z-50 px-4 pt-4 pointer-events-none">
-        <div className="mx-auto max-w-3xl">
-          <div className="pointer-events-auto rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-xs text-white/70">
-                {activeIndex + 1} / {slides.length}
-              </div>
-              <div className="flex-1 flex gap-1.5">
-                {slides.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => scrollToIndex(i)}
-                    className={`h-1 flex-1 rounded-full transition ${
-                      i <= activeIndex ? "bg-white/80" : "bg-white/20"
-                    }`}
-                    aria-label={`Go to slide ${i + 1}`}
-                  />
-                ))}
-              </div>
-              <div className="text-xs text-white/70 hidden sm:block">
-                Scroll • Snap • Share
-              </div>
+      {/* Sticky progress */}
+      <div className="fixed top-0 left-0 right-0 z-50 px-4 pt-4">
+        <div className="mx-auto max-w-3xl pointer-events-auto rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-white/70">
+              {activeIndex + 1} / {slides.length}
+            </div>
+            <div className="flex-1 flex gap-1.5">
+              {slides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => scrollToIndex(i)}
+                  className={`h-1 flex-1 rounded-full transition ${
+                    i <= activeIndex ? "bg-white/80" : "bg-white/20"
+                  }`}
+                  aria-label={`Go to page ${i + 1}`}
+                />
+              ))}
             </div>
           </div>
         </div>
       </div>
 
       {/* Scroll container */}
-      <main
-        className="
-          h-[100svh] overflow-y-auto
-          snap-y snap-mandatory
-          scroll-smooth
-        "
-      >
+      <main className="h-[100svh] overflow-y-auto snap-y snap-mandatory scroll-smooth">
         {slides.map((slide, idx) => (
           <section
             key={slide.id}
@@ -350,39 +306,26 @@ export default function Page() {
             data-index={idx}
             className={`snap-start min-h-[100svh] ${slide.theme.bg} text-white flex items-center justify-center px-5 py-16 relative overflow-hidden`}
           >
-            {/* Soft ambient blobs */}
+            {/* Ambient blobs */}
             <motion.div
               aria-hidden
               className="absolute -top-40 -left-40 h-[420px] w-[420px] rounded-full bg-white/10 blur-3xl"
-              animate={{
-                x: [0, 28, -8, 0],
-                y: [0, 18, 38, 0],
-                scale: [1, 1.06, 0.98, 1],
-              }}
+              animate={{ x: [0, 28, -8, 0], y: [0, 18, 38, 0], scale: [1, 1.06, 0.98, 1] }}
               transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
             />
             <motion.div
               aria-hidden
               className="absolute -bottom-48 -right-48 h-[520px] w-[520px] rounded-full bg-white/10 blur-3xl"
-              animate={{
-                x: [0, -18, 8, 0],
-                y: [0, -18, -38, 0],
-                scale: [1, 0.96, 1.06, 1],
-              }}
+              animate={{ x: [0, -18, 8, 0], y: [0, -18, -38, 0], scale: [1, 0.96, 1.06, 1] }}
               transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
             />
 
             <div className="relative z-10 w-full max-w-xl">
-              {/* Card */}
               <motion.div
                 initial={{ opacity: 0, y: 16, filter: "blur(10px)" }}
                 whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                 viewport={{ once: false, amount: 0.6 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 300,
-                  damping: 28,
-                }}
+                transition={{ type: "spring", stiffness: 300, damping: 28 }}
                 className="rounded-3xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-xl p-6 sm:p-8"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -409,17 +352,8 @@ export default function Page() {
 
                   {/* Share button per page */}
                   <button
-                    onClick={() => shareSlide(slide)}
-                    className="
-                      shrink-0
-                      inline-flex items-center gap-2
-                      rounded-full
-                      border border-white/10
-                      bg-white/10 hover:bg-white/15 active:bg-white/20
-                      transition
-                      px-4 py-2
-                      text-sm
-                    "
+                    onClick={() => shareContent(`Crown Customs Wrapped — ${slide.title}`, slide.subtitle)}
+                    className="shrink-0 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 hover:bg-white/15 active:bg-white/20 transition px-4 py-2 text-sm"
                     aria-label={`Share ${slide.title}`}
                     title="Share"
                   >
@@ -437,9 +371,7 @@ export default function Page() {
                       >
                         <div className="text-xs text-white/70">{s.label}</div>
                         <div className="mt-1 text-2xl font-semibold">{s.value}</div>
-                        {s.helper && (
-                          <div className="mt-1 text-xs text-white/55">{s.helper}</div>
-                        )}
+                        {s.helper && <div className="mt-1 text-xs text-white/55">{s.helper}</div>}
                       </div>
                     ))}
                   </div>
@@ -483,15 +415,10 @@ export default function Page() {
                   </div>
                 )}
 
-                {slide.footer && (
-                  <div className="mt-6 text-xs text-white/60">{slide.footer}</div>
-                )}
+                {slide.footer && <div className="mt-6 text-xs text-white/60">{slide.footer}</div>}
 
-                {/* Small nav helpers */}
                 <div className="mt-7 flex items-center justify-between">
-                  <div className="text-xs text-white/55">
-                    Scroll to the next page ↓
-                  </div>
+                  <div className="text-xs text-white/55">Scroll to the next page ↓</div>
                   <div className="text-xs text-white/55">
                     Page {idx + 1} of {slides.length}
                   </div>
@@ -502,7 +429,6 @@ export default function Page() {
         ))}
       </main>
 
-      {/* Optional bottom-right watermark */}
       <div className="fixed bottom-4 right-4 z-50 text-[11px] text-white/45 pointer-events-none">
         Crown Customs Wrapped • Template
       </div>
